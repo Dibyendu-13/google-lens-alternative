@@ -1,57 +1,44 @@
-# src/models/autoencoder_model.py
+"""
+Autoencoder Model: 
+An unsupervised learning approach for image reconstruction and representation learning.
+"""
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
 
-class Autoencoder(nn.Module):
+class AutoEncoder(nn.Module):
+    """
+    AutoEncoder for image reconstruction.
+    Encodes input images into latent representations and decodes them back to the original image dimensions.
+    """
     def __init__(self):
-        super(Autoencoder, self).__init__()
+        super(AutoEncoder, self).__init__()
+        # Encoder: Reduces the image dimensions to a latent representation
         self.encoder = nn.Sequential(
-            nn.Conv2d(3, 64, 3, padding=1),
+            nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1),  # Output: (64, 64, 64)
             nn.ReLU(),
-            nn.MaxPool2d(2, 2),
-            nn.Conv2d(64, 128, 3, padding=1),
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1),  # Output: (128, 32, 32)
             nn.ReLU(),
-            nn.MaxPool2d(2, 2)
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1),  # Output: (256, 16, 16)
+            nn.ReLU()
         )
+        # Decoder: Reconstructs the image from the latent representation
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(128, 64, 3, padding=1),
+            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1),
             nn.ReLU(),
-            nn.ConvTranspose2d(64, 3, 3, padding=1),
-            nn.Sigmoid()
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 3, kernel_size=3, stride=2, padding=1, output_padding=1),
+            nn.Sigmoid()  # Output values between 0 and 1
         )
 
     def forward(self, x):
+        """
+        Forward pass for the AutoEncoder.
+        Args:
+            x (torch.Tensor): Input image tensor.
+        Returns:
+            torch.Tensor: Reconstructed image tensor.
+        """
         encoded = self.encoder(x)
         decoded = self.decoder(encoded)
         return decoded
-
-def train_autoencoder(model, train_loader, epochs=10):
-    criterion = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
-        for images, _ in train_loader:
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = criterion(outputs, images)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        print(f'Epoch {epoch+1}/{epochs}, Loss: {running_loss/len(train_loader)}')
-
-# Example usage
-train_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-])
-
-train_data = datasets.ImageFolder(root='./data/train', transform=train_transform)
-train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
-
-model = Autoencoder()
-train_autoencoder(model, train_loader)

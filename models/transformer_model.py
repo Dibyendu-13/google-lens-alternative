@@ -1,42 +1,30 @@
-# src/models/transformer_model.py
+"""
+Transformer-based Model:
+A self-attention mechanism for global feature extraction.
+"""
 import torch
 import torch.nn as nn
-from transformers import ViTForImageClassification, ViTFeatureExtractor
+from torchvision.models import vit_b_16
 
-class VisionTransformerModel(nn.Module):
-    def __init__(self):
-        super(VisionTransformerModel, self).__init__()
-        self.model = ViTForImageClassification.from_pretrained('google/vit-base-patch16-224-in21k')
-        self.feature_extractor = ViTFeatureExtractor.from_pretrained('google/vit-base-patch16-224-in21k')
+class TransformerModel(nn.Module):
+    """
+    Vision Transformer (ViT) for image feature extraction.
+    """
+    def __init__(self, num_classes=10):
+        super(TransformerModel, self).__init__()
+        # Pretrained ViT backbone
+        self.vit = vit_b_16(pretrained=True)
+        self.fc = nn.Linear(self.vit.heads.in_features, num_classes)
+        self.vit.heads = nn.Identity()  # Remove default classification head
 
     def forward(self, x):
-        return self.model(x).logits
-
-def train_vit_model(model, train_loader, epochs=10):
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
-        for images, _ in train_loader:
-            optimizer.zero_grad()
-            outputs = model(images)
-            loss = torch.mean(outputs)  # Customize loss
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        print(f'Epoch {epoch+1}/{epochs}, Loss: {running_loss/len(train_loader)}')
-
-# Example usage
-from torchvision import datasets, transforms
-
-train_transform = transforms.Compose([
-    transforms.Resize((224, 224)),
-    transforms.ToTensor(),
-])
-
-train_data = datasets.ImageFolder(root='./data/train', transform=train_transform)
-train_loader = torch.utils.data.DataLoader(train_data, batch_size=64, shuffle=True)
-
-model = VisionTransformerModel()
-train_vit_model(model, train_loader)
+        """
+        Forward pass for Transformer model.
+        Args:
+            x (torch.Tensor): Input image tensor.
+        Returns:
+            torch.Tensor: Class logits or feature embeddings.
+        """
+        features = self.vit(x)
+        output = self.fc(features)
+        return output

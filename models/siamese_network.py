@@ -1,60 +1,54 @@
-# src/models/siamese_network.py
+"""
+Siamese Network:
+A pairwise learning approach for image similarity using shared weights.
+"""
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.utils.data import DataLoader
-from torchvision import datasets, transforms
+import torch.nn.functional as F
 
 class SiameseNetwork(nn.Module):
+    """
+    Siamese Network for image similarity comparison.
+    Takes two input images and computes a similarity score.
+    """
     def __init__(self):
         super(SiameseNetwork, self).__init__()
-        self.conv = nn.Sequential(
-            nn.Conv2d(3, 64, 3),
+        # Shared CNN feature extractor
+        self.feature_extractor = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(64, 128, 3),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
             nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2)
         )
-        self.fc = nn.Sequential(
-            nn.Linear(128 * 6 * 6, 512),
-            nn.ReLU(),
-            nn.Linear(512, 1)
-        )
+        # Fully connected layers for similarity score
+        self.fc1 = nn.Linear(128 * 32 * 32, 256)
+        self.fc2 = nn.Linear(256, 1)
 
-    def forward_one(self, x):
-        x = self.conv(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
+    def forward_once(self, x):
+        """
+        Forward pass for a single image through the feature extractor.
+        Args:
+            x (torch.Tensor): Input image tensor.
+        Returns:
+            torch.Tensor: Feature embedding.
+        """
+        x = self.feature_extractor(x)
+        x = x.view(x.size(0), -1)  # Flatten
         return x
 
-    def forward(self, input1, input2):
-        out1 = self.forward_one(input1)
-        out2 = self.forward_one(input2)
-        return out1, out2
-
-def train_siamese_network(model, train_loader, epochs=10):
-    criterion = nn.BCEWithLogitsLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-
-    for epoch in range(epochs):
-        model.train()
-        running_loss = 0.0
-        for img1, img2, label in train_loader:
-            optimizer.zero_grad()
-            output1, output2 = model(img1, img2)
-            loss = criterion(output1, output2)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-        print(f'Epoch {epoch+1}/{epochs}, Loss: {running_loss/len(train_loader)}')
-
-# Example usage
-train_transform = transforms.Compose([
-    transforms.ToTensor(),
-])
-
-# Load your dataset for siamese network and adjust the data to suit siamese training
-train_data = datasets.ImageFolder(root='./data/train', transform=train_transform)
-train_loader = DataLoader(train_data, batch_size=64, shuffle=True)
-
-model = SiameseNetwork()
-train_siamese_network(model, train_loader)
+    def forward(self, x1, x2):
+        """
+        Forward pass for Siamese network.
+        Args:
+            x1 (torch.Tensor): First input image tensor.
+            x2 (torch.Tensor): Second input image tensor.
+        Returns:
+            torch.Tensor: Similarity score.
+        """
+        embedding1 = self.forward_once(x1)
+        embedding2 = self.forward_once(x2)
+        distance = torch.abs(embedding1 - embedding2)
+        output = torch.sigmoid(self.fc2(F.relu(self.fc1(distance))))
+        return output
